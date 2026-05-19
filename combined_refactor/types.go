@@ -107,28 +107,28 @@ type iptestResult struct {
 type nsbScanMessage struct {
 	IP             string `json:"ip"`
 	Port           string `json:"port"`
-	TLS            string `json:"tls"`
-	DC             string `json:"dc"`
-	Loc            string `json:"loc"`
-	Region         string `json:"region"`
-	City           string `json:"city"`
-	Latency        string `json:"latency"`
-	LossRate       string `json:"lossRate"`
-	Speed          string `json:"speed"`
-	SpeedQualified bool   `json:"speedQualified"`
-	OutboundIP     string `json:"outboundIP"`
-	IPType         string `json:"ipType"`
-	ASNNumber      string `json:"asnNumber"`
-	ASNOrg         string `json:"asnOrg"`
-	VisitScheme    string `json:"visitScheme"`
-	TLSVersion     string `json:"tlsVersion"`
-	SNI            string `json:"sni"`
-	HTTPVersion    string `json:"httpVersion"`
-	Warp           string `json:"warp"`
-	Gateway        string `json:"gateway"`
-	RBI            string `json:"rbi"`
-	Kex            string `json:"kex"`
-	Timestamp      string `json:"timestamp"`
+	TLS            string `json:"tls,omitempty"`
+	DC             string `json:"dc,omitempty"`
+	Loc            string `json:"loc,omitempty"`
+	Region         string `json:"region,omitempty"`
+	City           string `json:"city,omitempty"`
+	Latency        string `json:"latency,omitempty"`
+	LossRate       string `json:"lossRate,omitempty"`
+	Speed          string `json:"speed,omitempty"`
+	SpeedQualified bool   `json:"speedQualified,omitempty"`
+	OutboundIP     string `json:"outboundIP,omitempty"`
+	IPType         string `json:"ipType,omitempty"`
+	ASNNumber      string `json:"asnNumber,omitempty"`
+	ASNOrg         string `json:"asnOrg,omitempty"`
+	VisitScheme    string `json:"visitScheme,omitempty"`
+	TLSVersion     string `json:"tlsVersion,omitempty"`
+	SNI            string `json:"sni,omitempty"`
+	HTTPVersion    string `json:"httpVersion,omitempty"`
+	Warp           string `json:"warp,omitempty"`
+	Gateway        string `json:"gateway,omitempty"`
+	RBI            string `json:"rbi,omitempty"`
+	Kex            string `json:"kex,omitempty"`
+	Timestamp      string `json:"timestamp,omitempty"`
 }
 
 type nsbCSVCompletePayload struct {
@@ -166,6 +166,33 @@ func (r *iptestResult) toNSBMessage(speedStr string) nsbScanMessage {
 		RBI:            r.rbi,
 		Kex:            r.kex,
 		Timestamp:      r.timestamp,
+	}
+}
+
+func (r *iptestResult) toNSBLiveMessage(speedStr string, compact bool) nsbScanMessage {
+	if compact {
+		return r.toCompactNSBMessage(speedStr)
+	}
+	return r.toNSBMessage(speedStr)
+}
+
+func (r *iptestResult) toCompactNSBMessage(speedStr string) nsbScanMessage {
+	return nsbScanMessage{
+		IP:             r.ipAddr,
+		Port:           strconv.Itoa(r.port),
+		TLS:            strconv.FormatBool(r.visitScheme == "https"),
+		DC:             r.dataCenter,
+		Loc:            r.locCode,
+		Region:         r.region,
+		City:           r.city,
+		Latency:        r.latency,
+		LossRate:       fmt.Sprintf("%.0f%%", r.lossRate*100),
+		Speed:          speedStr,
+		SpeedQualified: r.speedQualified,
+		OutboundIP:     r.outboundIP,
+		IPType:         r.ipType,
+		ASNNumber:      r.asnNumber,
+		ASNOrg:         r.asnOrg,
 	}
 }
 
@@ -214,6 +241,7 @@ var (
 	configResetMutex sync.Mutex
 
 	listenPort       int
+	listenHost       string
 	speedTestURL     string
 	speedTestWorkers = 5
 	debugMode        bool

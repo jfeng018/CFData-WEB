@@ -306,8 +306,9 @@
         #officialControls,
         #nsbControls {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 16px;
+            min-width: 0;
         }
 
         .controls button {
@@ -319,6 +320,7 @@
         .form-group {
             display: flex;
             flex-direction: column;
+            min-width: 0;
         }
 
         .form-group label {
@@ -356,6 +358,7 @@
             min-height: 52px;
             box-sizing: border-box;
             height: 100%;
+            min-width: 0;
         }
 
         .option-item .label {
@@ -377,6 +380,16 @@
             align-items: center;
             gap: 8px;
             flex: 1;
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .option-item .field-with-action:has(.speed-url-select) {
+            flex-wrap: wrap;
+        }
+
+        .option-item .field-with-action .speed-url-select + input {
+            flex: 1 1 260px;
             min-width: 0;
         }
 
@@ -407,8 +420,9 @@
         }
 
         .speed-url-select {
+            width: min(170px, 100%);
             max-width: 170px;
-            flex: 0 0 170px !important;
+            flex: 1 1 140px !important;
             min-height: 44px;
             font-size: 12px;
         }
@@ -427,6 +441,8 @@
             padding: 10px 12px;
             font-size: 14px;
             line-height: 20px;
+            max-width: 100%;
+            min-width: 0;
         }
 
         select {
@@ -630,6 +646,10 @@
             color: #fff;
             cursor: pointer;
             font-size: 12px;
+            min-height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .speed-btn {
@@ -689,24 +709,11 @@
             min-width: 92px;
         }
 
-        .compact-toggle {
-            display: none;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .compact-toggle input {
-            padding: 0;
-        }
-
         .table-filter-select {
             display: none;
             width: auto;
             height: 34px;
+            min-height: 34px;
             padding: 6px 30px 6px 10px;
             font-size: 12px;
         }
@@ -792,6 +799,9 @@
             width: min(760px, 100%);
             max-height: 90vh;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
             background: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 16px;
@@ -854,8 +864,10 @@
         }
 
         .modal-body {
-            max-height: calc(90vh - 96px);
-            overflow: auto;
+            min-height: 0;
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
             padding-right: 18px;
             margin-right: -8px;
             scrollbar-gutter: stable;
@@ -898,6 +910,8 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         .modal-field {
@@ -1004,6 +1018,12 @@
             background: color-mix(in srgb, var(--card-bg), var(--primary-color) 4%);
         }
 
+        .modal-actions.footer {
+            flex-shrink: 0;
+            padding-top: 14px;
+            border-top: 1px solid var(--border-color);
+        }
+
         .github-account-row {
             display: flex;
             gap: 8px;
@@ -1035,8 +1055,11 @@
             padding: 10px;
             font-size: 12px;
             white-space: pre-wrap;
-            overflow: auto;
+            overflow-y: auto;
+            overflow-x: hidden;
             max-height: 120px;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .upload-status.error {
@@ -1229,14 +1252,21 @@
                 max-width: 100%;
             }
 
-            .section-box h3 .table-actions {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) auto;
-                align-items: center;
-                gap: 8px;
+            .section-box h3:has(.table-actions) {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 10px;
             }
 
-            .section-box h3 .table-actions .compact-toggle {
+            .section-box h3 .table-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                align-items: center;
+                gap: 8px;
+                width: 100%;
+            }
+
+            #nsbCompactView {
                 grid-column: 1;
                 grid-row: 1;
                 width: 100%;
@@ -1257,22 +1287,23 @@
             }
 
             #test .section-box h3 .table-actions {
-                display: block;
-                grid-template-columns: minmax(0, 1fr) auto;
-                grid-template-rows: auto auto;
+                display: grid;
+                grid-template-columns: 1fr;
             }
 
             #test .section-box h3 .table-actions .official-test-actions {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 grid-template-rows: auto auto;
                 gap: 8px;
+                width: 100%;
             }
 
             #officialTestQualifiedFilter {
                 grid-column: 1;
                 grid-row: 1;
                 align-self: stretch;
+                width: 100%;
             }
 
             #btnBatchSpeed {
@@ -1290,13 +1321,14 @@
             #btnTestResultAction {
                 grid-column: 2;
                 grid-row: 1;
+                width: 100%;
             }
 
             .section-box h3 .table-actions .export-btn {
                 grid-column: 2;
                 grid-row: 1;
                 align-self: center;
-                width: auto;
+                width: 100%;
                 white-space: nowrap;
             }
 
@@ -1510,7 +1542,7 @@
                 </div>
                 <div class="option-item full-width">
                     <span class="label">📄 选择 IP 文件</span>
-                    <input id="ipFileInput" type="file" accept=".txt,.csv,text/plain"
+                    <input id="ipFileInput" type="file" accept=".txt,.csv,text/plain,text/csv"
                         onchange="syncNSBInputMode('file')">
                 </div>
                 <div class="option-item full-width">
@@ -1624,8 +1656,10 @@
                 <h3 style="display:flex;justify-content:space-between;align-items:center;">
                     <span>扫描结果 <span class="badge" id="scanCount">0</span></span>
                     <span class="table-actions">
-                        <label id="nsbCompactToggleWrap" class="compact-toggle"><input id="nsbCompactView"
-                                type="checkbox" checked onchange="setNSBCompactView(this.checked)"> 精简表格</label>
+                        <select id="nsbCompactView" class="table-filter-select" onchange="setNSBCompactView(this.value === 'compact')">
+                            <option value="compact" selected>精简表格</option>
+                            <option value="full">完整表格</option>
+                        </select>
                         <select id="nsbTableIPTypeFilter" class="table-filter-select" onchange="setNSBTableIPTypeFilter(this.value)">
                             <option value="all" selected>展示全部类型</option>
                             <option value="ipv4">仅展示IPV4</option>
@@ -1743,9 +1777,9 @@
                             <option value="unqualified">仅导出不合格</option>
                         </select>
                     </div>
-                    <div class="modal-actions inline">
-                        <button class="action-btn export-btn" onclick="downloadSelectedResults()">导出文件</button>
-                        <button class="action-btn export-btn" onclick="uploadSelectedResultsToGitHub()">上传 GitHub</button>
+                    <div class="modal-field full">
+                        <label>输出示例</label>
+                        <pre class="result-preview" id="resultPreview">暂无预览</pre>
                     </div>
                     <div class="modal-field full">
                         <div class="field-head">
@@ -1805,15 +1839,15 @@
                         <label>快速上传指定文件（不使用上方结果内容）</label>
                         <input id="githubQuickFile" type="file" accept=".txt,.csv,text/plain,text/csv">
                     </div>
-                    <div class="modal-field full">
-                        <label>输出示例</label>
-                        <pre class="result-preview" id="resultPreview">暂无预览</pre>
-                    </div>
                     <div class="modal-field full github-field">
                         <label>上传状态</label>
                         <div class="upload-status" id="githubUploadStatus">等待上传</div>
                     </div>
                 </div>
+            </div>
+            <div class="modal-actions footer">
+                <button class="action-btn export-btn" onclick="downloadSelectedResults()">导出文件</button>
+                <button class="action-btn export-btn" onclick="uploadSelectedResultsToGitHub()">上传 GitHub</button>
             </div>
         </div>
     </div>
@@ -1821,7 +1855,6 @@
     <div class="modal-mask" id="proxyWarningMask">
         <div class="result-modal proxy-warning-modal">
             <div class="modal-head">
-                <h3>代理检测警告</h3>
                 <button class="modal-close" onclick="cancelProxyWarning()">×</button>
             </div>
             <div class="proxy-warning-card">
@@ -1862,7 +1895,8 @@
         let nsbRows = [];
         let nsbLiveRows = [];
         let nsbLiveIndex = {};
-        let nsbLiveRenderTimer = null;
+        let nsbLiveRowElements = {};
+        let nsbStopHandledByComplete = false;
         let nsbCompactView = true;
         let nsbTableIPTypeFilter = 'all';
         let nsbTableQualifiedFilter = 'all';
@@ -1884,7 +1918,7 @@
         let runningTaskMode = '';
         let runningTaskTab = 'scan';
         let stopWatchdogTimer = null;
-        let cfCountry = 'CN';
+        let cfCountry = '检测失败';
         let proxyWarningRequired = false;
         let proxyGeoCheckOK = true;
         let proxyWarningBypassed = false;
@@ -2233,13 +2267,11 @@
             proxyCountryCheckTimer = window.setTimeout(() => {
                 proxyCountryCheckPending = false;
                 proxyCountryCheckTimer = null;
-                if (proxyWarningRequired) {
-                    showProxyWarningModal();
-                    return;
-                }
-                const pending = proxyWarningPendingAction;
-                proxyWarningPendingAction = null;
-                if (typeof pending === 'function') pending();
+                cfCountry = '检测失败';
+                proxyGeoCheckOK = false;
+                proxyWarningRequired = true;
+                log('代理检测警告：地区验证超时，已阻止自动开始测试');
+                showProxyWarningModal();
             }, 8000);
             if (!wsSend({ type: 'check_proxy_country', data: {} })) {
                 proxyCountryCheckPending = false;
@@ -2252,7 +2284,7 @@
         }
 
         function handleProxyCountryResult(data) {
-            cfCountry = String(data?.cfCountry || 'CN').toUpperCase();
+            cfCountry = normalizeProxyCountry(data);
             proxyWarningRequired = !!data?.proxyWarning;
             proxyGeoCheckOK = data?.geoCheckOK !== false;
             proxyCountryCheckPending = false;
@@ -2269,6 +2301,12 @@
             proxyWarningPendingAction = null;
             proxyWarningSinglePass = true;
             if (typeof action === 'function') action();
+        }
+
+        function normalizeProxyCountry(data) {
+            const value = String(data?.cfCountry || '').trim().toUpperCase();
+            if (value) return value;
+            return data?.skipGeoCheck ? 'SKIPPED' : '检测失败';
         }
 
         function requireCachedProxyWarning(action) {
@@ -2518,6 +2556,7 @@
             clearStopWatchdog();
             clearRunningTaskLabel();
             resetButton(buttonText);
+            updateNSBCompactToggle();
         }
 
         function clearStopWatchdog() {
@@ -2528,6 +2567,7 @@
 
         function startStopWatchdog() {
             clearStopWatchdog();
+            nsbStopHandledByComplete = false;
             stopWatchdogTimer = window.setTimeout(() => {
                 if (!isStoppingTask) return;
                 resetStoppedTaskUI('已手动终止，后台仍在清理；如立即重试提示已有任务，请稍后再试');
@@ -2589,8 +2629,12 @@
         }
 
         function updateNSBCompactToggle() {
-            const wrap = document.getElementById('nsbCompactToggleWrap');
-            if (wrap) wrap.style.display = currentMode === 'nsb' ? 'inline-flex' : 'none';
+            const compactToggle = document.getElementById('nsbCompactView');
+            if (compactToggle) {
+                compactToggle.style.display = currentMode === 'nsb' ? 'inline-block' : 'none';
+                compactToggle.value = nsbCompactView ? 'compact' : 'full';
+                compactToggle.disabled = isTaskRunning;
+            }
             const filter = document.getElementById('nsbTableIPTypeFilter');
             if (filter) {
                 filter.style.display = currentMode === 'nsb' ? 'inline-block' : 'none';
@@ -2604,6 +2648,12 @@
         }
 
         function setNSBCompactView(enabled) {
+            if (isTaskRunning) {
+                const compactToggle = document.getElementById('nsbCompactView');
+                if (compactToggle) compactToggle.value = nsbCompactView ? 'compact' : 'full';
+                alert('非标精简表格开关只能在任务开始前选择，本次任务启动后输出内容已固定。');
+                return;
+            }
             nsbCompactView = !!enabled;
             if (currentMode !== 'nsb') return;
             if (nsbRows.length) {
@@ -2801,24 +2851,54 @@
         }
 
         function renderAllNSBLiveRows() {
-            nsbLiveRenderTimer = null;
             const tbody = document.querySelector('#scanTable tbody');
             tbody.innerHTML = '';
-            sortNSBLiveRowsByLatency();
+            nsbLiveRowElements = {};
             const rows = nsbLiveRows.filter((row) => matchesIPTypeFilter(row.ipType, nsbTableIPTypeFilter) && matchesQualifiedFilter(row, nsbTableQualifiedFilter));
             rows.forEach((row) => {
-                const visibleHeaders = getVisibleNSBHeaders();
-                const visibleRow = filterNSBRow(NSB_LIVE_HEADERS, nsbRowToArray(row));
-                const tds = renderNSBRowFromCSV(visibleHeaders, visibleRow);
-                const rowStatus = getSpeedStatus(row.speed, isNSBSpeedQualified(row.speed));
-                tbody.insertAdjacentHTML('beforeend', `<tr class="${rowStatus === 'qualified' ? 'row-qualified' : (rowStatus === 'unqualified' ? 'row-unqualified' : '')}">${tds}</tr>`);
+                appendNSBLiveRow(row);
             });
             updateBadge('scanCount', rows.length);
         }
 
-        function scheduleNSBLiveRender() {
-            if (nsbLiveRenderTimer) return;
-            nsbLiveRenderTimer = window.setTimeout(renderAllNSBLiveRows, 250);
+        function renderNSBLiveRowHTML(row) {
+            const visibleHeaders = getVisibleNSBHeaders();
+            const visibleRow = filterNSBRow(NSB_LIVE_HEADERS, nsbRowToArray(row));
+            const tds = renderNSBRowFromCSV(visibleHeaders, visibleRow);
+            const rowStatus = getSpeedStatus(row.speed, isNSBSpeedQualified(row.speed));
+            return `<tr class="${rowStatus === 'qualified' ? 'row-qualified' : (rowStatus === 'unqualified' ? 'row-unqualified' : '')}">${tds}</tr>`;
+        }
+
+        function appendNSBLiveRow(row) {
+            const key = (row.ip || '') + ':' + (row.port || '');
+            const tbody = document.querySelector('#scanTable tbody');
+            tbody.insertAdjacentHTML('beforeend', renderNSBLiveRowHTML(row));
+            nsbLiveRowElements[key] = tbody.lastElementChild;
+        }
+
+        function updateNSBLiveRowElement(row) {
+            const key = (row.ip || '') + ':' + (row.port || '');
+            const existing = nsbLiveRowElements[key];
+            const visible = matchesIPTypeFilter(row.ipType, nsbTableIPTypeFilter) && matchesQualifiedFilter(row, nsbTableQualifiedFilter);
+            if (!visible) {
+                if (existing) {
+                    existing.remove();
+                    delete nsbLiveRowElements[key];
+                }
+                return;
+            }
+            if (!existing) {
+                appendNSBLiveRow(row);
+                return;
+            }
+            existing.insertAdjacentHTML('afterend', renderNSBLiveRowHTML(row));
+            const replacement = existing.nextElementSibling;
+            existing.remove();
+            nsbLiveRowElements[key] = replacement;
+        }
+
+        function updateNSBLiveBadgeFromData() {
+            updateBadge('scanCount', nsbLiveRows.filter((item) => matchesIPTypeFilter(item.ipType, nsbTableIPTypeFilter) && matchesQualifiedFilter(item, nsbTableQualifiedFilter)).length);
         }
 
         function addNSBLiveResult(row, render = true) {
@@ -2827,31 +2907,27 @@
 
             if (existingIdx !== undefined) {
                 Object.assign(nsbLiveRows[existingIdx], row);
-                if (!render) return;
-                scheduleNSBLiveRender();
+                if (!render) {
+                    updateNSBLiveBadgeFromData();
+                    return;
+                }
+                updateNSBLiveRowElement(nsbLiveRows[existingIdx]);
+                updateBadge('scanCount', document.querySelector('#scanTable tbody').children.length);
                 return;
             }
 
             nsbLiveIndex[key] = nsbLiveRows.length;
             nsbLiveRows.push(row);
-            updateBadge('scanCount', nsbLiveRows.filter((item) => matchesIPTypeFilter(item.ipType, nsbTableIPTypeFilter) && matchesQualifiedFilter(item, nsbTableQualifiedFilter)).length);
-            if (!render) return;
-            if (!matchesIPTypeFilter(row.ipType, nsbTableIPTypeFilter)) return;
-            if (!matchesQualifiedFilter(row, nsbTableQualifiedFilter)) return;
-            scheduleNSBLiveRender();
-        }
-
-        function sortNSBLiveRowsByLatency() {
-            nsbLiveRows.sort((a, b) => parseLatencyForSort(a.latency) - parseLatencyForSort(b.latency));
-            nsbLiveIndex = {};
-            nsbLiveRows.forEach((row, idx) => {
-                nsbLiveIndex[(row.ip || '') + ':' + (row.port || '')] = idx;
-            });
-        }
-
-        function parseLatencyForSort(value) {
-            const latency = parseFloat(String(value || '').replace(/ms/i, '').trim());
-            return Number.isFinite(latency) ? latency : Number.MAX_SAFE_INTEGER;
+            if (!render) {
+                updateNSBLiveBadgeFromData();
+                return;
+            }
+            if (!matchesIPTypeFilter(row.ipType, nsbTableIPTypeFilter) || !matchesQualifiedFilter(row, nsbTableQualifiedFilter)) {
+                updateBadge('scanCount', document.querySelector('#scanTable tbody').children.length);
+                return;
+            }
+            appendNSBLiveRow(row);
+            updateBadge('scanCount', document.querySelector('#scanTable tbody').children.length);
         }
 
         function normalizeIPTypeFilter(value) {
@@ -3371,7 +3447,8 @@
             const speedMin = parseFloat(document.getElementById('nsbSpeedMin').value) || 0;
             const speedLimit = parseInt(document.getElementById('nsbSpeedLimit').value) || 0;
             nsbSpeedMinValue = speedMin;
-            nsbCompactView = !!document.getElementById('nsbCompactView')?.checked;
+            nsbCompactView = document.getElementById('nsbCompactView')?.value !== 'full';
+            const compact = nsbCompactView;
             nsbTableQualifiedFilter = 'all';
             setNSBTableQualifiedFilter('all');
 
@@ -3389,6 +3466,7 @@
             runningTaskLabel = '非标优选';
             runningTaskMode = 'nsb';
             runningTaskTab = 'scan';
+            updateNSBCompactToggle();
             setStartLoading(getRunningButtonText(), 'linear-gradient(135deg, var(--error-color), #dc2626)', '0 4px 12px rgba(239, 68, 68, 0.3), inset 0 1px 1px rgba(255,255,255,0.2)');
             renderScanHeaders('nsb');
             resetProgress();
@@ -3401,10 +3479,7 @@
             nsbRows = [];
             nsbLiveRows = [];
             nsbLiveIndex = {};
-            if (nsbLiveRenderTimer) {
-                clearTimeout(nsbLiveRenderTimer);
-                nsbLiveRenderTimer = null;
-            }
+            nsbLiveRowElements = {};
             updateBadge('scanCount', 0);
             autoUploadKeys = new Set();
 
@@ -3424,6 +3499,7 @@
                     dc: targetDC,
                     speedMin,
                     speedLimit,
+                    compact,
                 }
             })) {
                 finishRunningTask('✨ 开始扫描与测试');
@@ -4096,7 +4172,7 @@
                 case 'init_config':
                     defaultSpeedTestUrl = msg.data.speedTestURL || defaultSpeedTestUrl;
                     webDebugMode = !!msg.data.debug;
-                    cfCountry = String(msg.data.cfCountry || 'CN').toUpperCase();
+                    cfCountry = normalizeProxyCountry(msg.data || {});
                     proxyWarningRequired = !!msg.data.proxyWarning;
                     proxyGeoCheckOK = msg.data.geoCheckOK !== false;
                     proxyWarningBypassed = false;
@@ -4241,20 +4317,14 @@
                     addNSBLiveResult(msg.data || {}, currentMode === 'nsb');
                     break;
                 case 'nsb_csv_complete':
-                    if (isStoppingTask) {
-                        resetStoppedTaskUI('已手动终止');
-                        log('任务已手动终止');
-                        break;
-                    }
+                    const wasStoppingNSB = isStoppingTask;
                     finishRunningTask('✨ 开始扫描与测试');
+                    nsbStopHandledByComplete = wasStoppingNSB;
                     nsbHeaders = msg.data.headers || [];
                     nsbRows = msg.data.rows || [];
                     nsbLiveRows = [];
                     nsbLiveIndex = {};
-                    if (nsbLiveRenderTimer) {
-                        clearTimeout(nsbLiveRenderTimer);
-                        nsbLiveRenderTimer = null;
-                    }
+                    nsbLiveRowElements = {};
                     if (nsbSpeedEnabledForResults) {
                         setNSBTableQualifiedFilter((msg.data.qualifiedCount || 0) > 0 ? 'qualified' : 'all');
                     }
@@ -4280,6 +4350,10 @@
                     break;
 
                 case 'task_stopped':
+                    if (nsbStopHandledByComplete) {
+                        nsbStopHandledByComplete = false;
+                        break;
+                    }
                     resetStoppedTaskUI('已手动终止');
                     log('任务已手动终止');
                     break;

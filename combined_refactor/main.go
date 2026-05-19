@@ -146,6 +146,7 @@ func main() {
 	cliCfg := registerCLIFlags()
 
 	flag.IntVar(&listenPort, "port", 13335, "服务监听端口")
+	flag.StringVar(&listenHost, "host", "", "服务监听地址；留空监听全部地址，Android APK 建议使用 127.0.0.1")
 	flag.StringVar(&speedTestURL, "url", "speed.okl.abrdns.com", "测速下载地址（不含协议前缀），可选 speed.cloudflare.com/__down?bytes=99999999")
 	flag.BoolVar(&skipGeoCheck, "skipgeo", false, "跳过地区/代理环境验证")
 	flag.StringVar(&customDNSServer, "dns", defaultDNSServers, "自定义 DNS 服务器，例如 223.5.5.5、8.8.8.8:53 或逗号分隔多个；默认系统 DNS 优先、失败回退到该内置 DNS，显式提供时强制使用指定 DNS")
@@ -215,9 +216,14 @@ func main() {
 	http.HandleFunc("/ws", requireAuth(handleWebSocket))
 
 	addr := fmt.Sprintf(":%d", listenPort)
+	displayHost := "localhost"
+	if strings.TrimSpace(listenHost) != "" {
+		addr = fmt.Sprintf("%s:%d", strings.TrimSpace(listenHost), listenPort)
+		displayHost = strings.TrimSpace(listenHost)
+	}
 	fmt.Printf("CFData-WEB 版本: %s\n", appVersion)
 	go checkAndPrintUpdate("")
-	fmt.Printf("服务启动于 http://localhost:%d\n", listenPort)
+	fmt.Printf("服务启动于 http://%s:%d\n", displayHost, listenPort)
 	if webUser != "" && webPassword != "" {
 		fmt.Printf("Web 认证已启用，用户名: %s\n", webUser)
 		fmt.Printf("Web 会话有效期: %s 分钟\n", strconv.Itoa(webSessionMinutes))

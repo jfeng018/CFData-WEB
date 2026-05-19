@@ -516,17 +516,19 @@ func runNSBTask(ctx context.Context, session *appSession, fileName, fileContent,
 		nsbResults = append(nsbResults, *res)
 		accepted := len(nsbResults)
 		resMutex.Unlock()
-		session.sendWSMessage("nsb_scan_result", res.toNSBMessage(""))
+		session.sendWSMessage("nsb_scan_result", res.toNSBLiveMessage("", compact))
 		return accepted
 	})
 
 	if wasCanceled || ctx.Err() != nil {
-		session.sendWSMessage("log", "检测到停止命令，非标优选延迟扫描已强制终止")
-		session.sendWSMessage("error", "任务已被手动终止，未生成最终结果")
-		return
+		session.sendWSMessage("log", "非标优选延迟扫描已终止，正在整理已扫描到的数据...")
 	}
 
 	if len(nsbResults) == 0 {
+		if wasCanceled || ctx.Err() != nil {
+			session.sendWSMessage("log", "非标优选延迟扫描已终止，当前没有可整理的有效 IP。")
+			return
+		}
 		session.sendWSMessage("error", "未发现有效 IP")
 		return
 	}
@@ -539,7 +541,11 @@ func runNSBTask(ctx context.Context, session *appSession, fileName, fileContent,
 	completionStatus := "complete"
 	completionMessage := "测试完成"
 	qualifiedCount := 0
-	if speedTest > 0 && speedLimit > 0 {
+	if (wasCanceled || ctx.Err() != nil) && speedTest > 0 && speedLimit > 0 {
+		completionStatus = "partial"
+		completionMessage = "任务已手动终止，已整理当前扫描结果"
+	}
+	if !wasCanceled && ctx.Err() == nil && speedTest > 0 && speedLimit > 0 {
 		session.sendWSMessage("log", fmt.Sprintf("开始测速：%d 条记录，线程数=%d，目标上限=%d，测速阈值=%.2fMB/s", len(nsbResults), speedTest, speedLimit, speedMin))
 
 		reportNSBProgress(session, "speed", 0, speedLimit, "测速中")
@@ -547,7 +553,7 @@ func runNSBTask(ctx context.Context, session *appSession, fileName, fileContent,
 			reportNSBProgress(session, "speed", min(qualified, speedLimit), speedLimit, "测速中")
 		}, func(idx int, speedErr string) {
 			res := &nsbResults[idx]
-			session.sendWSMessage("nsb_scan_result", res.toNSBMessage(res.speedText))
+			session.sendWSMessage("nsb_scan_result", res.toNSBLiveMessage(res.speedText, compact))
 			if debugMode && speedErr != "" {
 				failMutex.Lock()
 				failures = append(failures, nsbFailureRecord{
@@ -587,9 +593,9 @@ func runNSBTask(ctx context.Context, session *appSession, fileName, fileContent,
 	}
 
 	if wasCanceled || ctx.Err() != nil {
-		session.sendWSMessage("log", "检测到停止命令，非标测速任务已强制终止")
-		session.sendWSMessage("error", "测速任务已被手动终止，不再进行结果整理")
-		return
+		session.sendWSMessage("log", "非标测速任务已终止，正在整理当前可用测速结果...")
+		completionStatus = "partial"
+		completionMessage = "任务已手动终止，已整理当前可用结果"
 	}
 
 	if err := writeNSBCSV(outFile, nsbResults, speedTest, compact); err != nil {

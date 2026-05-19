@@ -132,6 +132,9 @@ func rotateDebugLogIfNeeded(path string) {
 }
 
 func defaultDebugLogPath() string {
+	if cwd, err := os.Getwd(); err == nil && strings.TrimSpace(cwd) != "" {
+		return filepath.Join(cwd, debugLogFileName)
+	}
 	exe, err := os.Executable()
 	if err != nil || strings.TrimSpace(exe) == "" {
 		return debugLogFileName

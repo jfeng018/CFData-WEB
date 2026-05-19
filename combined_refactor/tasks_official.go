@@ -14,12 +14,12 @@ import (
 	"time"
 )
 
-func scanOfficialIP(ctx context.Context, ip string, port int) *ScanResult {
+func scanOfficialIP(ctx context.Context, ip string, port int) (*ScanResult, string, string) {
 	dialer := &net.Dialer{Timeout: timeout}
 	start := time.Now()
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 	if err != nil {
-		return nil
+		return nil, "tcp_connect_failed", err.Error()
 	}
 
 	connClosed := false
@@ -50,7 +50,7 @@ func scanOfficialIP(ctx context.Context, ip string, port int) *ScanResult {
 
 	req, err := http.NewRequestWithContext(ctx, "GET", scheme+requestURL, nil)
 	if err != nil {
-		return nil
+		return nil, "request_create_failed", err.Error()
 	}
 	req.Host = "speed.cloudflare.com"
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -58,12 +58,12 @@ func scanOfficialIP(ctx context.Context, ip string, port int) *ScanResult {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil
+		return nil, "trace_request_failed", err.Error()
 	}
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	resp.Body.Close()
 	if err != nil {
-		return nil
+		return nil, "trace_read_failed", err.Error()
 	}
 	bodyStr := string(bodyBytes)
 	trace := parseTraceResponse(bodyStr)
@@ -72,7 +72,7 @@ func scanOfficialIP(ctx context.Context, ip string, port int) *ScanResult {
 		if debugMode {
 			sendLog(fmt.Sprintf("[official-scan-debug] trace missing colo: ip=%s port=%d body=%q", ip, port, strings.TrimSpace(bodyStr)))
 		}
-		return nil
+		return nil, "trace_missing_colo", strings.TrimSpace(bodyStr)
 	}
 
 	loc := locationMap[dataCenter]
@@ -85,16 +85,18 @@ func scanOfficialIP(ctx context.Context, ip string, port int) *ScanResult {
 		LatencyStr:  fmt.Sprintf("%dms", tcpDuration.Milliseconds()),
 		TCPDuration: tcpDuration,
 	}
-	return res
+	return res, "", ""
 }
 
-func testIPLatency(ctx context.Context, ip string, port int, delay int) *TestResult {
+func testIPLatency(ctx context.Context, ip string, port int, delay int) (*TestResult, string, string) {
 	dialerTimeout := time.Duration(delay) * time.Millisecond
 	if delay <= 0 {
 		dialerTimeout = 3 * time.Second
 	}
 	dialer := &net.Dialer{Timeout: dialerTimeout}
 	successCount := 0
+	failureCount := 0
+	lastFailure := ""
 	var totalLatency time.Duration
 	minLatency := time.Duration(math.MaxInt64)
 	maxLatency := time.Duration(0)
@@ -102,18 +104,22 @@ func testIPLatency(ctx context.Context, ip string, port int, delay int) *TestRes
 	for i := 0; i < 10; i++ {
 		select {
 		case <-ctx.Done():
-			return nil
+			return nil, "test_canceled", ctx.Err().Error()
 		default:
 		}
 
 		start := time.Now()
 		conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 		if err != nil {
+			failureCount++
+			lastFailure = err.Error()
 			continue
 		}
 		latency := time.Since(start)
 		if delay > 0 && latency > time.Duration(delay)*time.Millisecond {
 			conn.Close()
+			failureCount++
+			lastFailure = fmt.Sprintf("latency %s exceeds delay %dms", latency, delay)
 			continue
 		}
 		successCount++
@@ -128,7 +134,10 @@ func testIPLatency(ctx context.Context, ip string, port int, delay int) *TestRes
 	}
 
 	if successCount == 0 {
-		return nil
+		if lastFailure == "" {
+			lastFailure = fmt.Sprintf("all %d attempts failed", failureCount)
+		}
+		return nil, "latency_test_failed", lastFailure
 	}
 
 	avgLatency := totalLatency / time.Duration(successCount)
@@ -140,7 +149,7 @@ func testIPLatency(ctx context.Context, ip string, port int, delay int) *TestRes
 		MaxLatency: maxLatency,
 		AvgLatency: avgLatency,
 		LossRate:   lossRate,
-	}
+	}, "", ""
 }
 
 func runOfficialTask(ctx context.Context, session *appSession, ipType int, scanMaxThreads int, port int) {
@@ -174,6 +183,20 @@ func runOfficialTask(ctx context.Context, session *appSession, ipType int, scanM
 	session.scanMutex.Unlock()
 
 	total := len(ipList)
+	failureCounts := map[string]int{}
+	failureSamples := map[string]string{}
+	failureMutex := sync.Mutex{}
+	recordFailure := func(category, detail string) {
+		if category == "" {
+			return
+		}
+		failureMutex.Lock()
+		defer failureMutex.Unlock()
+		failureCounts[category]++
+		if failureSamples[category] == "" && strings.TrimSpace(detail) != "" {
+			failureSamples[category] = detail
+		}
+	}
 	session.sendWSMessage("scan_progress", map[string]interface{}{
 		"current": 0,
 		"total":   total,
@@ -191,8 +214,9 @@ func runOfficialTask(ctx context.Context, session *appSession, ipType int, scanM
 		default:
 		}
 
-		res := scanOfficialIP(ctx, ip, port)
+		res, failureCategory, failureDetail := scanOfficialIP(ctx, ip, port)
 		if res == nil {
+			recordFailure(failureCategory, failureDetail)
 			return
 		}
 		select {
@@ -221,8 +245,13 @@ func runOfficialTask(ctx context.Context, session *appSession, ipType int, scanM
 			session.sendWSMessage("log", "扫描任务已终止，当前没有可整理的有效 IP。")
 			return
 		}
+		session.sendWSMessage("log", formatOfficialFailureSummary(failureCounts, failureSamples))
 		session.sendWSMessage("error", "扫描结束或被终止，但未发现任何有效IP。")
 		return
+	}
+	session.sendWSMessage("log", fmt.Sprintf("官方扫描统计: 成功=%d，失败=%d", resultsCount, sumFailureCounts(failureCounts)))
+	if len(failureCounts) > 0 {
+		session.sendWSMessage("log", formatOfficialFailureSummary(failureCounts, failureSamples))
 	}
 
 	session.scanMutex.Lock()
@@ -286,6 +315,20 @@ func runDetailedTest(ctx context.Context, session *appSession, selectedDC string
 
 	var results []TestResult
 	var resMutex sync.Mutex
+	failureCounts := map[string]int{}
+	failureSamples := map[string]string{}
+	failureMutex := sync.Mutex{}
+	recordFailure := func(category, detail string) {
+		if category == "" {
+			return
+		}
+		failureMutex.Lock()
+		defer failureMutex.Unlock()
+		failureCounts[category]++
+		if failureSamples[category] == "" && strings.TrimSpace(detail) != "" {
+			failureSamples[category] = detail
+		}
+	}
 
 	total := len(testIPList)
 	session.sendWSMessage("test_progress", map[string]interface{}{
@@ -305,8 +348,9 @@ func runDetailedTest(ctx context.Context, session *appSession, selectedDC string
 		default:
 		}
 
-		res := testIPLatency(ctx, ip, port, delay)
+		res, failureCategory, failureDetail := testIPLatency(ctx, ip, port, delay)
 		if res == nil {
+			recordFailure(failureCategory, failureDetail)
 			return
 		}
 		select {
@@ -330,6 +374,15 @@ func runDetailedTest(ctx context.Context, session *appSession, selectedDC string
 		session.sendWSMessage("log", "详细测试已被终止，正在呈现当前可用测试结果...")
 		return
 	}
+	if len(results) == 0 {
+		session.sendWSMessage("log", formatFailureSummary("详细测试失败统计", failureCounts, failureSamples))
+		session.sendWSMessage("error", "详细测试完成，但没有任何 IP 通过延迟测试。")
+		return
+	}
+	session.sendWSMessage("log", fmt.Sprintf("详细测试统计: 成功=%d，失败=%d", len(results), sumFailureCounts(failureCounts)))
+	if len(failureCounts) > 0 {
+		session.sendWSMessage("log", formatFailureSummary("详细测试失败统计", failureCounts, failureSamples))
+	}
 
 	sortOfficialTestResults(results)
 
@@ -338,6 +391,42 @@ func runDetailedTest(ctx context.Context, session *appSession, selectedDC string
 	session.testMutex.Unlock()
 
 	session.sendWSMessage("test_complete", results)
+}
+
+func formatOfficialFailureSummary(counts map[string]int, samples map[string]string) string {
+	return formatFailureSummary("官方扫描失败统计", counts, samples)
+}
+
+func formatFailureSummary(title string, counts map[string]int, samples map[string]string) string {
+	if len(counts) == 0 {
+		return title + ": 没有记录到失败原因。"
+	}
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		sample := strings.TrimSpace(samples[key])
+		if len(sample) > 160 {
+			sample = sample[:160] + "..."
+		}
+		if sample != "" {
+			parts = append(parts, fmt.Sprintf("%s=%d（示例: %s）", key, counts[key], sample))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s=%d", key, counts[key]))
+	}
+	return title + ": " + strings.Join(parts, "; ")
+}
+
+func sumFailureCounts(counts map[string]int) int {
+	total := 0
+	for _, count := range counts {
+		total += count
+	}
+	return total
 }
 
 func sortOfficialTestResults(results []TestResult) {

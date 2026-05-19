@@ -25,6 +25,8 @@ Thumbs.db
 release_assets/
 cfdata
 cfdata-*
+!app/src/main/java/com/cfdata/
+!app/src/main/java/com/cfdata/**
 combined_refactor/cfdata
 combined_refactor/cfdata-*
 cfdata-config.json
@@ -43,6 +45,12 @@ combined_refactor/*.mmdb
 combined_refactor/ip.csv
 combined_refactor/ip.txt
 combined_refactor/*_failures.csv
+
+# Android build outputs
+.gradle/
+app/build/
+app/src/main/assets/cfdata-android-*
+app/src/main/jniLibs/*/libcfdata.so
 
 # Windows alternate data stream artifacts copied into archives
 *.Zone.Identifier
