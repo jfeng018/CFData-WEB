@@ -1696,7 +1696,7 @@
                             <button class="action-btn export-btn" id="btnNSBBatchSpeed" onclick="startNSBBatchSpeed(false)" disabled>🚀 一键测速</button>
                             <button class="action-btn export-btn" id="btnNSBContinueSpeed" onclick="startNSBBatchSpeed(true)" disabled>⏭️ 继续测速</button>
                             <button class="action-btn export-btn" id="btnNSBSort" onclick="openSortModal('nsb')">↕️ 一键排序</button>
-                            <button class="action-btn export-btn" id="btnScanCopy" onclick="copyDisplayedResults('scan', event)">📋 一键复制</button>
+                            <button class="action-btn export-btn" id="btnScanCopy" onclick="openCopyModal('scan')">📋 一键复制</button>
                             <button class="action-btn export-btn" id="btnScanResultAction" onclick="openResultModal('scan')">📥 结果操作</button>
                         </span>
                     </span>
@@ -1734,7 +1734,7 @@
                             <button class="action-btn export-btn" id="btnBatchSpeed" onclick="startOfficialBatchSpeed(false)" disabled>🚀 一键测速</button>
                             <button class="action-btn export-btn" id="btnContinueBatchSpeed" onclick="startOfficialBatchSpeed(false, true)" disabled>⏭️ 继续测速</button>
                             <button class="action-btn export-btn" id="btnTestSort" onclick="openSortModal('official')">↕️ 一键排序</button>
-                            <button class="action-btn export-btn" id="btnTestCopy" onclick="copyDisplayedResults('test', event)">📋 一键复制</button>
+                            <button class="action-btn export-btn" id="btnTestCopy" onclick="openCopyModal('test')">📋 一键复制</button>
                             <button class="action-btn export-btn" id="btnTestResultAction" onclick="openResultModal('test')">📥 结果操作</button>
                         </span>
                     </span>
@@ -1885,6 +1885,69 @@
         </div>
     </div>
 
+    <div class="modal-mask" id="copyModalMask">
+        <div class="result-modal">
+            <div class="modal-head">
+                <h3 id="copyModalTitle">一键复制</h3>
+                <button class="modal-close" onclick="closeCopyModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="modal-field">
+                        <label>开始行</label>
+                        <input id="copyStartRow" type="number" value="1" min="1" oninput="updateCopyPreview()">
+                    </div>
+                    <div class="modal-field">
+                        <label>结束行</label>
+                        <input id="copyEndRow" type="number" value="20" min="1" oninput="updateCopyPreview()">
+                    </div>
+                    <div class="modal-field" id="copyIPTypeFilterField">
+                        <label>IP 类型筛选</label>
+                        <select id="copyIPTypeFilter" onchange="updateCopyPreview()">
+                            <option value="all" selected>复制全部类型</option>
+                            <option value="ipv4">仅复制IPV4</option>
+                            <option value="ipv6">仅复制IPV6</option>
+                        </select>
+                    </div>
+                    <div class="modal-field" id="copyQualifiedFilterField">
+                        <label>复制合格结果</label>
+                        <select id="copyQualifiedFilter" onchange="updateCopyPreview()">
+                            <option value="all" selected>复制全部结果</option>
+                            <option value="qualified">仅复制合格</option>
+                            <option value="unqualified">仅复制不合格</option>
+                        </select>
+                    </div>
+                    <div class="modal-field full">
+                        <label>输出示例</label>
+                        <pre class="result-preview" id="copyPreview">暂无预览</pre>
+                    </div>
+                    <div class="modal-field full">
+                        <div class="field-head">
+                            <label>字段选择</label>
+                            <div class="field-head-actions">
+                                <button class="action-btn" id="copySelectAllBtn" onclick="toggleAllCopyFields()">全选</button>
+                                <button class="action-btn" onclick="selectCopyIPPortOnly()">仅 IP:PORT</button>
+                                <button class="action-btn" onclick="selectDefaultCopyFields()">默认选择</button>
+                            </div>
+                        </div>
+                        <div class="field-picker" id="copyFieldPicker"></div>
+                    </div>
+                    <div class="modal-field full">
+                        <label>自定义字段</label>
+                        <input id="copyCustomFields" type="text" placeholder="标题:内容，多项用逗号分隔，例如 备注:测试版,归属:cfdata" oninput="handleCustomCopyFieldsChange()">
+                    </div>
+                    <div class="modal-field full">
+                        <label>输出顺序</label>
+                        <div class="order-list" id="copyOrderList"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions footer">
+                <button class="action-btn export-btn" onclick="copyConfiguredResults(event)">复制结果</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-mask" id="sortModalMask">
         <div class="result-modal">
             <div class="modal-head">
@@ -2009,9 +2072,12 @@
         let proxyCountryCheckTimer = null;
         let proxyWarningSinglePass = false;
         let resultModalMode = 'scan';
+        let copyModalMode = 'scan';
         let sortModalMode = 'official';
         let resultFieldOrder = [];
         let resultCustomFields = [];
+        let copyFieldOrder = [];
+        let copyCustomFields = [];
         let autoUploadKeys = new Set();
         const githubAccountStorageKey = 'cfdata-github-accounts';
         const githubSessionTokens = new Map();
@@ -4348,6 +4414,162 @@
             renderResultFieldOptions();
         }
 
+        function openCopyModal(mode) {
+            copyModalMode = mode;
+            document.getElementById('copyModalTitle').textContent = currentMode === 'nsb' ? '非标结果一键复制' : (mode === 'test' ? '官方详细测试一键复制' : '官方扫描结果一键复制');
+            const filterField = document.getElementById('copyIPTypeFilterField');
+            if (filterField) filterField.style.display = currentMode === 'nsb' ? '' : 'none';
+            const filterSelect = document.getElementById('copyIPTypeFilter');
+            if (filterSelect && currentMode === 'official') filterSelect.value = 'all';
+            const qualifiedField = document.getElementById('copyQualifiedFilterField');
+            if (qualifiedField) qualifiedField.style.display = '';
+            const rows = getCopyRowsBeforeRange();
+            if (!rows.length) return alert('暂无可复制结果');
+            if (!copyFieldOrder.length) copyFieldOrder = getDefaultResultFieldOrderFor(mode, 'txt');
+            renderCopyFieldOptions();
+            document.getElementById('copyModalMask').classList.add('active');
+        }
+
+        function closeCopyModal() {
+            document.getElementById('copyModalMask').classList.remove('active');
+        }
+
+        function getCopyRowsBeforeRange() {
+            const filter = document.getElementById('copyIPTypeFilter')?.value || 'all';
+            const qualified = document.getElementById('copyQualifiedFilter')?.value || 'all';
+            if (currentMode === 'nsb') {
+                return getNSBResultObjects().filter((row) => matchesIPTypeFilter(row.ipType, filter) && matchesQualifiedFilter(row, qualified));
+            }
+            const rows = getCurrentResultRows(copyModalMode);
+            return rows.filter((row) => matchesIPTypeFilter(getOfficialIPType(row), filter) && matchesOfficialQualifiedFilter(row, qualified));
+        }
+
+        function getSelectedCopyRows() {
+            const rows = getCopyRowsBeforeRange();
+            const start = Math.max(1, parseInt(document.getElementById('copyStartRow')?.value || '1', 10) || 1);
+            const end = Math.max(start, parseInt(document.getElementById('copyEndRow')?.value || '20', 10) || 20);
+            return rows.slice(start - 1, end).map((row) => {
+                const next = { ...row };
+                for (const field of copyCustomFields) next[field.key] = field.value;
+                return next;
+            });
+        }
+
+        function getAvailableCopyFieldKeys() {
+            const rows = getCopyRowsBeforeRange();
+            return RESULT_FIELDS.filter((f) => f.key === 'ipport' || rows.some((r) => String(r[f.key] ?? '').trim() !== '')).concat(copyCustomFields).map((f) => f.key);
+        }
+
+        function areAllCopyFieldsSelected() {
+            const available = getAvailableCopyFieldKeys();
+            return available.length > 0 && available.every((key) => copyFieldOrder.includes(key));
+        }
+
+        function updateCopyFieldQuickButtons() {
+            const btn = document.getElementById('copySelectAllBtn');
+            if (!btn) return;
+            btn.textContent = areAllCopyFieldsSelected() ? '全部选' : '全选';
+            btn.title = areAllCopyFieldsSelected() ? '恢复默认选择' : '选择全部可用字段';
+        }
+
+        function renderCopyFieldOptions() {
+            if (!copyFieldOrder.length) copyFieldOrder = getDefaultResultFieldOrderFor(copyModalMode, 'txt');
+            if (!copyFieldOrder.includes('ipport')) copyFieldOrder.unshift('ipport');
+            const rows = getCopyRowsBeforeRange();
+            const available = RESULT_FIELDS.filter((f) => f.key === 'ipport' || rows.some((r) => String(r[f.key] ?? '').trim() !== '')).concat(copyCustomFields);
+            document.getElementById('copyFieldPicker').innerHTML = available.map((f) => `<label class="field-pill"><input type="checkbox" value="${f.key}" ${copyFieldOrder.includes(f.key) ? 'checked' : ''} onchange="toggleCopyField('${f.key}', this.checked)"> ${f.label}</label>`).join('');
+            updateCopyFieldQuickButtons();
+            renderCopyOrderList();
+            updateCopyPreview();
+        }
+
+        function renderCopyOrderList() {
+            const byKey = Object.fromEntries(RESULT_FIELDS.concat(copyCustomFields).map((f) => [f.key, f]));
+            document.getElementById('copyOrderList').innerHTML = copyFieldOrder.map((key, idx) => `<div class="order-item"><span>${byKey[key]?.label || key}</span><span><button onclick="moveCopyField(${idx}, -1)">↑</button> <button onclick="moveCopyField(${idx}, 1)">↓</button></span></div>`).join('');
+            updateCopyPreview();
+        }
+
+        function handleCustomCopyFieldsChange() {
+            const next = parseResultCustomFields(document.getElementById('copyCustomFields')?.value || '');
+            const nextKeys = new Set(next.map((f) => f.key));
+            copyFieldOrder = copyFieldOrder.filter((key) => !copyCustomFields.some((f) => f.key === key) || nextKeys.has(key));
+            copyCustomFields = next;
+            for (const field of copyCustomFields) {
+                if (!copyFieldOrder.includes(field.key)) copyFieldOrder.push(field.key);
+            }
+            renderCopyFieldOptions();
+        }
+
+        function toggleCopyField(key, checked) {
+            if (checked && !copyFieldOrder.includes(key)) copyFieldOrder.push(key);
+            if (!checked) copyFieldOrder = copyFieldOrder.filter((k) => k !== key);
+            renderCopyOrderList();
+        }
+
+        function moveCopyField(index, delta) {
+            const next = index + delta;
+            if (next < 0 || next >= copyFieldOrder.length) return;
+            [copyFieldOrder[index], copyFieldOrder[next]] = [copyFieldOrder[next], copyFieldOrder[index]];
+            renderCopyFieldOptions();
+        }
+
+        function toggleAllCopyFields() {
+            if (areAllCopyFieldsSelected()) {
+                selectDefaultCopyFields();
+                return;
+            }
+            copyFieldOrder = getAvailableCopyFieldKeys();
+            renderCopyFieldOptions();
+        }
+
+        function selectCopyIPPortOnly() {
+            copyFieldOrder = ['ipport'];
+            renderCopyFieldOptions();
+        }
+
+        function selectDefaultCopyFields() {
+            copyFieldOrder = getDefaultResultFieldOrderFor(copyModalMode, 'txt');
+            renderCopyFieldOptions();
+        }
+
+        function buildCopyContent() {
+            const rows = getSelectedCopyRows();
+            if (!rows.length) throw new Error('暂无可复制结果');
+            const fields = copyFieldOrder.length ? copyFieldOrder : getDefaultResultFieldOrderFor(copyModalMode, 'txt');
+            return buildResultContent('txt', rows, fields);
+        }
+
+        function buildCopyPreview() {
+            const rows = getSelectedCopyRows();
+            if (!rows.length) return '暂无预览';
+            const fields = copyFieldOrder.length ? copyFieldOrder : getDefaultResultFieldOrderFor(copyModalMode, 'txt');
+            const first = rows[0];
+            const ipport = first.ipport || `${first.ip || ''}:${first.port || ''}`;
+            const extras = fields.filter((key) => key !== 'ipport').map((key) => first[key]).filter((value) => String(value ?? '').trim() !== '');
+            return extras.length ? `${ipport}#${extras.join('-')}` : ipport;
+        }
+
+        function updateCopyPreview() {
+            const el = document.getElementById('copyPreview');
+            if (!el) return;
+            try {
+                el.textContent = buildCopyPreview();
+            } catch (err) {
+                el.textContent = err.message || '预览失败';
+            }
+        }
+
+        function copyConfiguredResults(event) {
+            let content;
+            try {
+                content = buildCopyContent();
+            } catch (err) {
+                alert(err.message || '暂无可复制结果');
+                return;
+            }
+            copyToClipboard(content, event);
+        }
+
         function getCurrentResultRows(mode) {
             if (currentMode === 'nsb') return getNSBResultObjects();
             const rows = mode === 'test' ? testData.map(testResultToObject) : scanData.map(scanResultToObject);
@@ -4418,12 +4640,6 @@
             if (!rows.length) throw new Error('暂无可操作结果');
             const fields = resultFieldOrder.length ? resultFieldOrder : getDefaultResultFieldOrder(format);
             return buildResultContent(format, rows, fields);
-        }
-
-        function buildDisplayedResultContent(mode) {
-            const rows = getDisplayedResultRows(mode).slice(0, 10);
-            if (!rows.length) throw new Error('当前展示表格暂无可复制结果');
-            return buildResultContent('txt', rows, getDefaultResultFieldOrderFor(mode, 'txt'));
         }
 
         function buildResultContent(format, rows, fields) {
@@ -4529,17 +4745,6 @@
             }
             const name = document.getElementById('resultFileName').value.trim() || 'cfdata-results';
             downloadFile(content, name, format);
-        }
-
-        function copyDisplayedResults(mode, event) {
-            let content;
-            try {
-                content = buildDisplayedResultContent(mode);
-            } catch (err) {
-                alert(err.message || '当前展示表格暂无可复制结果');
-                return;
-            }
-            copyToClipboard(content, event);
         }
 
         async function uploadSelectedResultsToGitHub() {
