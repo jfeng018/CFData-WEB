@@ -599,6 +599,30 @@
             display: block;
         }
 
+        .background-confirm-card {
+            display: none;
+            margin-top: 10px;
+            margin-bottom: 0;
+            border-color: rgba(245, 158, 11, 0.45);
+            background: color-mix(in srgb, var(--bg-color), var(--warning-color) 10%);
+        }
+
+        .background-confirm-card.active {
+            display: block;
+        }
+
+        .background-confirm-text {
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin: 8px 0 12px;
+        }
+
+        .background-confirm-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
         .background-status-head {
             display: flex;
             justify-content: space-between;
@@ -886,6 +910,28 @@
 
         .proxy-warning-modal {
             width: min(680px, 100%);
+        }
+
+        .notice-modal {
+            width: min(560px, 100%);
+        }
+
+        .notice-card {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .notice-card-title {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 20px;
+        }
+
+        .notice-card-message {
+            white-space: pre-line;
+            color: var(--text-secondary);
+            line-height: 1.7;
         }
 
         .proxy-warning-card {
@@ -1247,6 +1293,10 @@
                 align-items: flex-start;
                 padding: 10px;
                 overflow-y: auto;
+            }
+
+            #noticeCardMask {
+                align-items: center;
             }
 
             .modal-grid {
@@ -1718,6 +1768,20 @@
             <button id="btnStart" class="btn" onclick="startTask()"><span id="btnStartSpinner"
                     class="hidden"></span><span id="btnStartLabel">✨ 开始扫描与测试</span></button>
             <button id="btnRunInBackground" class="action-btn export-btn" onclick="runTaskInBackground()" style="display:none;margin-top:10px;">🕘 转入后台运行</button>
+            <div class="background-status-card background-confirm-card" id="backgroundConfirmCard">
+                <div class="background-status-title">确认转入后台运行？</div>
+                <div class="background-confirm-text">
+                    <div>关闭或刷新页面不会中断任务。</div>
+                    <div>不会恢复断开期间的表格历史结果。</div>
+                    <div>后台任务只保留轻量状态，不做后台恢复同步全部数据。</div>
+                    <div>经过测试，数据量过大时同步全部数据可能导致浏览器崩溃。</div>
+                    <div>大任务建议使用 CLI 查看最终结果文件。</div>
+                </div>
+                <div class="background-confirm-actions">
+                    <button class="action-btn export-btn" onclick="confirmRunTaskInBackground()">确认转入后台</button>
+                    <button class="action-btn" onclick="hideBackgroundConfirmCard()">取消</button>
+                </div>
+            </div>
         </div>
 
         <div class="progress-container" id="progressBox">
@@ -2119,25 +2183,16 @@
         </div>
     </div>
 
-    <div class="modal-mask" id="proxyWarningMask">
-        <div class="result-modal proxy-warning-modal">
+    <div class="modal-mask" id="noticeCardMask">
+        <div class="result-modal notice-modal">
             <div class="modal-head">
-                <button class="modal-close" onclick="cancelProxyWarning()">×</button>
+                <h3 id="noticeCardTitle">提示</h3>
+                <button class="modal-close" onclick="closeNoticeCard()">×</button>
             </div>
-            <div class="proxy-warning-card">
-                <h3 class="proxy-warning-title">🚨 代理检测警告</h3>
-                <div class="proxy-warning-country">读取到的网络标签：<span id="proxyWarningCountry">未知</span></div>
-                <p id="proxyWarningIntro">检测到您当前很可能处于代理/VPN环境中！</p>
-                <p>在代理状态下进行的IP优选测试结果将不准确，可能导致：</p>
-                <ul>
-                    <li>延迟数据失真，无法反映真实网络状况</li>
-                    <li>优选出的IP在直连环境下表现不佳</li>
-                    <li>测试结果对实际使用场景参考价值有限</li>
-                </ul>
-                <p><strong>建议操作：</strong>请关闭所有代理软件（VPN、科学上网工具等），确保处于直连网络环境后刷新页面重新测试。</p>
-                <div class="proxy-warning-actions">
-                    <button class="action-btn danger-btn" id="proxyWarningStopBtn" onclick="cancelProxyWarning()">停止测速</button>
-                    <button class="action-btn export-btn" id="proxyWarningContinueBtn" onclick="confirmProxyWarning()" disabled>强制继续 (5)</button>
+            <div class="notice-card">
+                <div class="notice-card-message" id="noticeCardMessage"></div>
+                <div class="modal-actions footer" id="noticeCardActions">
+                    <button class="action-btn export-btn" onclick="closeNoticeCard()">知道了</button>
                 </div>
             </div>
         </div>
@@ -2210,6 +2265,7 @@
         let copyFieldOrder = [];
         let copyCustomFields = [];
         let autoUploadKeys = new Set();
+        let noticeConfirmAction = null;
         const githubAccountStorageKey = 'cfdata-github-accounts';
         const githubSessionTokens = new Map();
         const githubTokenCryptoSalt = 'cfdata-github-token-v1';
@@ -2448,11 +2504,12 @@
         }
 
         function resetAllConfig() {
-            if (!window.confirm('这会清掉本地缓存文件：ips-v4.txt、ips-v6.txt、locations.json、GeoLite2-ASN.mmdb。要继续吗？')) {
-                return;
-            }
+            showConfirmCard('这会清掉本地缓存文件：ips-v4.txt、ips-v6.txt、locations.json、GeoLite2-ASN.mmdb。\n要继续吗？', confirmResetAllConfig, '清理本地缓存');
+        }
+
+        function confirmResetAllConfig() {
             if (!wsSend({ type: 'reset_all_config' })) {
-                alert('与服务端的连接尚未就绪，请稍后再试');
+                showNoticeCard('与服务端的连接尚未就绪，请稍后再试');
                 return;
             }
             const menu = document.getElementById('settingsMenu');
@@ -2502,16 +2559,17 @@
         function startCompactIPv4() {
             if (requireProxyWarning(() => startCompactIPv4())) return;
             if (!ws || ws.readyState !== WebSocket.OPEN) {
-                alert('与服务端的连接尚未就绪，请等待"已连接服务器"后再试');
+                showNoticeCard('与服务端的连接尚未就绪，请等待"已连接服务器"后再试');
                 return;
             }
             if (isTaskRunning) {
-                alert('当前已有任务运行，请先停止或等待完成');
+                showNoticeCard('当前已有任务运行，请先停止或等待完成');
                 return;
             }
-            if (!window.confirm('精简会覆盖本地 ips-v4.txt，仅保留探测到活跃的 /24 子网。继续？')) {
-                return;
-            }
+            showConfirmCard('精简会覆盖本地 ips-v4.txt。\n仅保留探测到活跃的 /24 子网。\n继续？', confirmStartCompactIPv4, '确认精简 IPv4 地址库');
+        }
+
+        function confirmStartCompactIPv4() {
             const btn = document.getElementById('btnCompactIPv4');
             if (btn) {
                 btn.disabled = true;
@@ -2600,6 +2658,44 @@
             box.scrollTop = box.scrollHeight;
         }
 
+        function showNoticeCard(message, title = '提示') {
+            noticeConfirmAction = null;
+            const mask = document.getElementById('noticeCardMask');
+            const titleEl = document.getElementById('noticeCardTitle');
+            const messageEl = document.getElementById('noticeCardMessage');
+            const actions = document.getElementById('noticeCardActions');
+            if (!mask || !titleEl || !messageEl || !actions) return;
+            titleEl.textContent = title;
+            messageEl.textContent = String(message || '');
+            actions.innerHTML = '<button class="action-btn export-btn" onclick="closeNoticeCard()">知道了</button>';
+            mask.classList.add('active');
+        }
+
+        function showConfirmCard(message, onConfirm, title = '确认操作') {
+            noticeConfirmAction = typeof onConfirm === 'function' ? onConfirm : null;
+            const mask = document.getElementById('noticeCardMask');
+            const titleEl = document.getElementById('noticeCardTitle');
+            const messageEl = document.getElementById('noticeCardMessage');
+            const actions = document.getElementById('noticeCardActions');
+            if (!mask || !titleEl || !messageEl || !actions) return;
+            titleEl.textContent = title;
+            messageEl.textContent = String(message || '');
+            actions.innerHTML = '<button class="action-btn" onclick="closeNoticeCard()">取消</button><button class="action-btn export-btn" onclick="confirmNoticeCard()">确认</button>';
+            mask.classList.add('active');
+        }
+
+        function closeNoticeCard() {
+            const mask = document.getElementById('noticeCardMask');
+            if (mask) mask.classList.remove('active');
+            noticeConfirmAction = null;
+        }
+
+        function confirmNoticeCard() {
+            const action = noticeConfirmAction;
+            closeNoticeCard();
+            if (typeof action === 'function') action();
+        }
+
         function requireProxyWarning(action) {
             if (proxyWarningSinglePass) {
                 proxyWarningSinglePass = false;
@@ -2624,7 +2720,7 @@
                 window.clearTimeout(proxyCountryCheckTimer);
                 proxyCountryCheckTimer = null;
                 proxyWarningPendingAction = null;
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
             }
             return true;
         }
@@ -2663,38 +2759,48 @@
         }
 
         function showProxyWarningModal() {
-            const mask = document.getElementById('proxyWarningMask');
+            const mask = document.getElementById('noticeCardMask');
             const btn = document.getElementById('proxyWarningContinueBtn');
-            const countryEl = document.getElementById('proxyWarningCountry');
-            const introEl = document.getElementById('proxyWarningIntro');
-            if (!mask || !btn) return;
-            if (countryEl) countryEl.textContent = cfCountry || '未知';
-            if (introEl) introEl.textContent = proxyGeoCheckOK ? '检测到您当前很可能处于代理/VPN环境中！' : '地区验证失败，无法确认当前是否处于代理/VPN环境中！';
+            const titleEl = document.getElementById('noticeCardTitle');
+            const messageEl = document.getElementById('noticeCardMessage');
+            const actions = document.getElementById('noticeCardActions');
+            if (!mask || !titleEl || !messageEl || !actions) return;
+            titleEl.textContent = '代理检测警告';
+            messageEl.textContent = [
+                `读取到的网络标签：${cfCountry || '未知'}`,
+                proxyGeoCheckOK ? '检测到您当前很可能处于代理/VPN环境中。' : '地区验证失败，无法确认当前是否处于代理/VPN环境中。',
+                '在代理状态下进行的 IP 优选测试结果将不准确。',
+                '建议关闭代理软件后刷新页面重新测试。',
+            ].join('\n');
+            actions.innerHTML = '<button class="action-btn danger-btn" onclick="cancelProxyWarning()">停止测速</button><button class="action-btn export-btn" id="proxyWarningContinueBtn" onclick="confirmProxyWarning()" disabled>强制继续 (5)</button>';
             mask.classList.add('active');
             let remaining = 5;
-            btn.disabled = true;
-            btn.textContent = `强制继续 (${remaining})`;
+            const nextBtn = document.getElementById('proxyWarningContinueBtn');
+            if (!nextBtn) return;
+            nextBtn.disabled = true;
+            nextBtn.textContent = `强制继续 (${remaining})`;
             if (proxyWarningCountdownTimer) window.clearInterval(proxyWarningCountdownTimer);
             proxyWarningCountdownTimer = window.setInterval(() => {
                 remaining--;
                 if (remaining <= 0) {
                     window.clearInterval(proxyWarningCountdownTimer);
                     proxyWarningCountdownTimer = null;
-                    btn.disabled = false;
-                    btn.textContent = '强制继续';
+                    nextBtn.disabled = false;
+                    nextBtn.textContent = '强制继续';
                     return;
                 }
-                btn.textContent = `强制继续 (${remaining})`;
+                nextBtn.textContent = `强制继续 (${remaining})`;
             }, 1000);
         }
 
         function hideProxyWarningModal() {
-            const mask = document.getElementById('proxyWarningMask');
+            const mask = document.getElementById('noticeCardMask');
             if (mask) mask.classList.remove('active');
             if (proxyWarningCountdownTimer) {
                 window.clearInterval(proxyWarningCountdownTimer);
                 proxyWarningCountdownTimer = null;
             }
+            noticeConfirmAction = null;
         }
 
         function cancelProxyWarning() {
@@ -2866,23 +2972,36 @@
         function updateBackgroundButton() {
             const btn = document.getElementById('btnRunInBackground');
             if (!btn) return;
-            btn.style.display = isTaskRunning && !backgroundTaskActive ? 'inline-flex' : 'none';
+            const visible = isTaskRunning && !backgroundTaskActive;
+            btn.style.display = visible ? 'inline-flex' : 'none';
             btn.disabled = isStoppingTask;
+            if (!visible) hideBackgroundConfirmCard();
         }
 
         function runTaskInBackground() {
             if (!isTaskRunning) return;
-            if (!confirm('确认转入后台运行？关闭或刷新页面不会中断任务，但不会恢复断开期间的表格历史结果。大任务建议使用 CLI 查看最终结果文件。')) return;
+            const card = document.getElementById('backgroundConfirmCard');
+            if (card) card.classList.add('active');
+        }
+
+        function hideBackgroundConfirmCard() {
+            const card = document.getElementById('backgroundConfirmCard');
+            if (card) card.classList.remove('active');
+        }
+
+        function confirmRunTaskInBackground() {
+            if (!isTaskRunning) return;
             if (!wsSend({ type: 'run_in_background', data: {} })) {
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return;
             }
+            hideBackgroundConfirmCard();
             updateBackgroundButton();
         }
 
         function stopBackgroundTask() {
             if (!wsSend({ type: 'stop_task', data: {} })) {
-                alert('连接未就绪，无法发送停止命令');
+                showNoticeCard('连接未就绪，无法发送停止命令');
                 return;
             }
             isStoppingTask = true;
@@ -2892,7 +3011,7 @@
 
         function followBackgroundTask() {
             if (!wsSend({ type: 'follow_background_task', data: {} })) {
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return;
             }
         }
@@ -3185,7 +3304,7 @@
             if (isTaskRunning) {
                 const compactToggle = document.getElementById('nsbCompactView');
                 if (compactToggle) compactToggle.value = nsbCompactView ? 'compact' : 'full';
-                alert('非标精简表格开关只能在任务开始前选择，本次任务启动后输出内容已固定。');
+                showNoticeCard('非标精简表格开关只能在任务开始前选择，本次任务启动后输出内容已固定。');
                 return;
             }
             nsbCompactView = !!enabled;
@@ -3682,7 +3801,7 @@
                 isTaskRunning = false;
                 showDCSelection(dcList);
                 finishRunningTask('✨ 重新开始扫描');
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return;
             }
             switchTab('test');
@@ -3838,12 +3957,12 @@
             if (requireProxyWarning(() => startOfficialBatchSpeed(auto, continued))) return false;
             if (officialBatchSpeedRunning) return false;
             if (!testData.length) {
-                if (!auto) alert('请先完成数据中心详细测试');
+                if (!auto) showNoticeCard('请先完成数据中心详细测试');
                 return false;
             }
             const cfg = syncOfficialSpeedConfigState();
             if (cfg.speedLimit <= 0) {
-                if (!auto) alert('测速结果上限必须大于 0');
+                if (!auto) showNoticeCard('测速结果上限必须大于 0');
                 else log('官方自动测速已跳过：测速结果上限为 0');
                 return false;
             }
@@ -3866,7 +3985,7 @@
                 officialBatchSpeedRunning = false;
                 finishRunningTask('✨ 开始扫描与测试');
                 updateBatchSpeedButton();
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return false;
             }
             return true;
@@ -3876,7 +3995,7 @@
             if (requireProxyWarning(() => startNSBBatchSpeed(continued))) return false;
             if (nsbBatchSpeedRunning) return false;
             if (currentMode !== 'nsb') {
-                alert('请切换到非标模式后再测速');
+                showNoticeCard('请切换到非标模式后再测速');
                 return false;
             }
             const enableSpeedTest = document.getElementById('enableSpeedTest');
@@ -3886,16 +4005,16 @@
             }
             const rows = getNSBSpeedTargetRows();
             if (!rows.length) {
-                alert('当前没有可测速的非标结果');
+                showNoticeCard('当前没有可测速的非标结果');
                 return false;
             }
             const cfg = syncNSBSpeedConfigState();
             if (cfg.speedTest <= 0) {
-                alert('测速线程必须大于 0');
+                showNoticeCard('测速线程必须大于 0');
                 return false;
             }
             if (cfg.speedLimit <= 0) {
-                alert('测速结果上限必须大于 0');
+                showNoticeCard('测速结果上限必须大于 0');
                 return false;
             }
             nsbBatchSpeedRunning = true;
@@ -3916,7 +4035,7 @@
                 nsbBatchSpeedRunning = false;
                 finishRunningTask('✨ 开始扫描与测试');
                 updateNSBSpeedButtons();
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return false;
             }
             return true;
@@ -3992,16 +4111,7 @@
 
         function startTask() {
             if (isTaskRunning || officialBatchSpeedRunning || nsbBatchSpeedRunning) {
-                if (confirm(getStopConfirmText())) {
-                    if (!wsSend({ type: 'stop_task', data: {} })) {
-                        alert('连接未就绪，无法发送停止命令');
-                        return;
-                    }
-                    isStoppingTask = true;
-                    setStartLoading('正在停止...');
-                    showStoppingProgress();
-                    startStopWatchdog();
-                }
+                showConfirmCard(getStopConfirmText(), confirmStopCurrentTask, '终止当前任务');
                 return;
             }
 
@@ -4012,6 +4122,17 @@
             } else {
                 startNSBTask();
             }
+        }
+
+        function confirmStopCurrentTask() {
+            if (!wsSend({ type: 'stop_task', data: {} })) {
+                showNoticeCard('连接未就绪，无法发送停止命令');
+                return;
+            }
+            isStoppingTask = true;
+            setStartLoading('正在停止...');
+            showStoppingProgress();
+            startStopWatchdog();
         }
 
         function startOfficialTask() {
@@ -4058,7 +4179,7 @@
                 officialAutoSpeedPending = false;
                 officialAutoStage = '';
                 finishRunningTask('✨ 开始扫描与测试');
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
                 return;
             }
             switchTab('scan');
@@ -4085,7 +4206,7 @@
             const hasFile = !!uploadedFileContent.trim();
             const hasURL = !!sourceURL;
             if (hasFile === hasURL) {
-                alert('请选择本地文件或填写网络 URL（二选一）');
+                showNoticeCard('请选择本地文件或填写网络 URL（二选一）');
                 return;
             }
 
@@ -4112,15 +4233,15 @@
             setNSBTableQualifiedFilter('all');
 
             if (isNaN(speedTestInput) || speedTestInput < 0) {
-                alert('测速线程必须为非负整数');
+                showNoticeCard('测速线程必须为非负整数');
                 return;
             }
             if (resultLimit <= 0) {
-                alert('延迟结果上限必须填写非 0 正整数');
+                showNoticeCard('延迟结果上限必须填写非 0 正整数');
                 return;
             }
             if (fallbackPort <= 0 || fallbackPort > 65535) {
-                alert('备用端口必须为 1-65535');
+                showNoticeCard('备用端口必须为 1-65535');
                 return;
             }
 
@@ -4167,7 +4288,7 @@
                 }
             })) {
                 finishRunningTask('✨ 开始扫描与测试');
-                alert('连接未就绪，请等待重连后再试');
+                showNoticeCard('连接未就绪，请等待重连后再试');
             }
         }
 
@@ -4211,7 +4332,7 @@
         function openResultModal(mode) {
             resultModalMode = currentMode === 'nsb' ? 'nsb' : mode;
             const rows = getCurrentResultRows(resultModalMode);
-            if (!rows.length) return alert('暂无可操作结果');
+            if (!rows.length) return showNoticeCard('暂无可操作结果');
             document.getElementById('resultModalTitle').textContent = '结果操作';
             const formatSelect = document.getElementById('resultFormat');
             if (formatSelect && !formatSelect.value) formatSelect.value = 'txt';
@@ -4236,7 +4357,7 @@
         function openSortModal(mode) {
             sortModalMode = mode === 'nsb' ? 'nsb' : 'official';
             const count = sortModalMode === 'nsb' ? (nsbRows.length || nsbLiveRows.length) : testData.length;
-            if (!count) return alert('暂无可排序结果');
+            if (!count) return showNoticeCard('暂无可排序结果');
             document.getElementById('sortModalTitle').textContent = sortModalMode === 'nsb' ? '非标测速一键排序' : '官方详细测试一键排序';
             document.getElementById('sortModalMask').classList.add('active');
         }
@@ -4306,7 +4427,7 @@
 
         function applySortModal() {
             const priorities = getSortPriorities();
-            if (!priorities.length) return alert('请选择排序优先级');
+            if (!priorities.length) return showNoticeCard('请选择排序优先级');
             if (sortModalMode === 'nsb') applyNSBSort(priorities);
             else applyOfficialTestSort(priorities);
             closeSortModal();
@@ -4574,7 +4695,7 @@
                 githubSessionTokens.set(name, payload.token);
                 next.tokenCipher = await encryptGitHubToken(name, payload.token);
                 if (!next.tokenCipher) {
-                    alert('当前浏览器不支持 WebCrypto，无法安全保存 token；本次仍会上传，但不会持久保存 token');
+                    showNoticeCard('当前浏览器不支持 WebCrypto，无法安全保存 token；本次仍会上传，但不会持久保存 token');
                 }
             } else {
                 githubSessionTokens.delete(name);
@@ -4700,7 +4821,7 @@
             const qualifiedField = document.getElementById('copyQualifiedFilterField');
             if (qualifiedField) qualifiedField.style.display = '';
             const rows = getCopyRowsBeforeRange();
-            if (!rows.length) return alert('暂无可复制结果');
+            if (!rows.length) return showNoticeCard('暂无可复制结果');
             if (!copyFieldOrder.length) copyFieldOrder = getDefaultResultFieldOrderFor(copyModalMode, 'txt');
             renderCopyFieldOptions();
             document.getElementById('copyModalMask').classList.add('active');
@@ -4841,7 +4962,7 @@
             try {
                 content = buildCopyContent();
             } catch (err) {
-                alert(err.message || '暂无可复制结果');
+                showNoticeCard(err.message || '暂无可复制结果');
                 return;
             }
             copyToClipboard(content, event);
@@ -5045,7 +5166,7 @@
             try {
                 content = buildSelectedResultContent(format);
             } catch (err) {
-                alert(err.message || '暂无可操作结果');
+                showNoticeCard(err.message || '暂无可操作结果');
                 return;
             }
             const name = document.getElementById('resultFileName').value.trim() || 'cfdata-results';
@@ -5059,11 +5180,11 @@
             try {
                 content = quickFile ? quickFile.content : buildSelectedResultContent(format);
             } catch (err) {
-                alert(err.message || '暂无可操作结果');
+                showNoticeCard(err.message || '暂无可操作结果');
                 return;
             }
             const repoParts = document.getElementById('githubRepo').value.trim().split('/');
-            if (repoParts.length !== 2 || !repoParts[0] || !repoParts[1]) return alert('仓库格式应为 owner/repo');
+            if (repoParts.length !== 2 || !repoParts[0] || !repoParts[1]) return showNoticeCard('仓库格式应为 owner/repo');
             const payload = {
                 token: document.getElementById('githubToken').value.trim(),
                 owner: repoParts[0], repo: repoParts[1],
@@ -5072,7 +5193,7 @@
                 message: document.getElementById('githubMessage').value.trim() || 'update cfdata results',
                 content,
             };
-            if (!payload.token) return alert('Token 不能为空');
+            if (!payload.token) return showNoticeCard('Token 不能为空');
             await saveCurrentGitHubAccount(payload);
             sendGitHubUpload(payload);
             log('已提交 GitHub 上传请求');
@@ -5258,7 +5379,7 @@
                         renderRawURLCopy(msg.data.rawURL || '');
                     }
                     log(`GitHub 上传完成: ${msg.data.rawURL || msg.data.path || ''}`);
-                    alert(`GitHub 上传完成\n${msg.data.path || ''}`);
+                    showNoticeCard(`GitHub 上传完成\n${msg.data.path || ''}`);
                     break;
 
                 case 'github_upload_status':
@@ -5268,7 +5389,7 @@
                 case 'github_upload_error':
                     recordWebDebugError('github_upload_error', msg.data?.message || msg.data || 'GitHub 上传失败');
                     if (msg.data.silent) {
-                        alert(msg.data.message || 'GitHub 自动上传失败');
+                        showNoticeCard(msg.data.message || 'GitHub 自动上传失败');
                     } else {
                         setGitHubUploadStatus(msg.data.message || 'GitHub 上传失败', 'error');
                     }
@@ -5539,10 +5660,10 @@
             const reminder = data.reminder || '删掉之后，下次重新运行程序时会自动重新下载。';
 
             if (data.success) {
-                alert(`本地缓存已清理\n\n已删除: ${deleted}\n不存在: ${missing}\n\n提示: ${reminder}`);
+                showNoticeCard(`本地缓存已清理\n\n已删除: ${deleted}\n不存在: ${missing}\n\n提示: ${reminder}`);
                 log(`本地缓存已清理，已删除: ${deleted}；不存在: ${missing}`);
             } else {
-                alert(`本地缓存清理失败\n\n已删除: ${deleted}\n不存在: ${missing}\n删除失败: ${failed}\n\n提示: ${reminder}`);
+                showNoticeCard(`本地缓存清理失败\n\n已删除: ${deleted}\n不存在: ${missing}\n删除失败: ${failed}\n\n提示: ${reminder}`);
                 log(`清理本地缓存时有文件没删掉: ${failed}`);
             }
         }
